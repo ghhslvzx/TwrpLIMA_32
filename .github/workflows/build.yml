@@ -1,0 +1,45 @@
+name: Build TWRP
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Check out source
+      uses: actions/checkout@v3
+
+    - name: Install dependencies
+      run: |
+        sudo apt update
+        sudo apt install -y git-core gnupg flex bison build-essential zip curl zlib1g-dev \
+        gcc-multilib g++-multilib libc6-dev-i386 libncurses5-dev x11proto-core-dev \
+        libx11-dev libreadline-dev libgl1-mesa-glx libgl1-mesa-dev libpng-dev libssl-dev \
+        libxml2 libxml2-utils xsltproc unzip rsync
+
+    - name: Set up build env
+      run: |
+        git config --global user.name "gh-actions"
+        git config --global user.email "actions@github.com"
+        mkdir -p ~/twrp && cd ~/twrp
+        git clone https://github.com/minimal-manifest-twrp/platform_manifest_twrp_aosp -b twrp-12.1 .repo
+        repo init -u https://github.com/minimal-manifest-twrp/platform_manifest_twrp_aosp -b twrp-12.1
+        repo sync -j$(nproc) --force-sync
+
+        # Copia sua tree pro lugar certo
+        mkdir -p device/motorola/
+        cp -r $GITHUB_WORKSPACE/device/motorola/lima device/motorola/
+
+    - name: Start build
+      run: |
+        source build/envsetup.sh
+        lunch twrp_lima-eng
+        mka recoveryimage
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: recovery.img
+        path: out/target/product/lima/recovery.img
